@@ -1,0 +1,49 @@
+stages:
+  - build
+  - archive
+  - deliver
+
+variables:
+  PACKAGE_DIR: "package"
+  ZIP_NAME: "$CI_PROJECT_NAME.zip"
+
+BUILD DEPENDENCIES
+build:
+  stage: build
+  image: python:3.11
+  script:
+    - mkdir -p $PACKAGE_DIR
+    - pip install --upgrade pip
+    - pip install --target $PACKAGE_DIR -r requirements.txt
+  artifacts:
+    paths:
+      - $PACKAGE_DIR/
+
+# ARCHIVE PACKAGE
+archive:
+  stage: archive
+  image: ubuntu:latest
+  only:
+    - master
+  before_script:
+    - apt-get update
+    - apt-get install -y zip
+  script:
+    - cd $PACKAGE_DIR
+    - zip -r ../$ZIP_NAME .
+    - cd ..
+    - zip -g $ZIP_NAME lambda_function.py
+  artifacts:
+    paths:
+      - $ZIP_NAME
+
+# DEPLOY TO AWS LAMBDA
+deliver:
+  stage: deliver
+  image: amazon/aws-cli
+  only:
+    - master
+  script:
+    - aws lambda update-function-code \
+        --function-name $AWS_LAMBDA_FUNCTION_NAME \
+        --zip-file fileb://$ZIP_NAME
